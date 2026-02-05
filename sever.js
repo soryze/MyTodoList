@@ -1,41 +1,56 @@
+require('dotenv').config();
+
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
-const PORT = 3000;
-const TASKS_FILE = path.join(__dirname, 'tasks.json');
+const PORT = process.env.PORT || 3000;
 
-// Đọc danh sách từ file JSON (giống app.js)
-function loadTasks() {
+// Khởi tạo Supabase client từ biến môi trường
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  console.warn('⚠️  Thiếu SUPABASE_URL hoặc SUPABASE_KEY trong file .env');
+}
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// Hàm tránh XSS khi hiển thị text lên HTML
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// GET / — Trang chủ: đọc danh sách từ bảng `tasks` và hiển thị HTML
+app.get('/', async (req, res) => {
+  let tasks = [];
+  let dbError = null;
+
   try {
-    if (fs.existsSync(TASKS_FILE)) {
-      const data = fs.readFileSync(TASKS_FILE, 'utf8');
-      if (data.trim() === '') return [];
-      return JSON.parse(data);
-    }
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .order('id', { ascending: true });
+
+    if (error) throw error;
+    tasks = data || [];
   } catch (err) {
-    console.error('Lỗi đọc tasks.json:', err.message);
+    console.error('Lỗi khi lấy danh sách tasks từ Supabase:', err.message);
+    dbError = err.message;
   }
-  return [];
-}
-
-// Ghi danh sách ra file JSON
-function saveTasks(tasks) {
-  fs.writeFileSync(TASKS_FILE, JSON.stringify(tasks, null, 2), 'utf8');
-}
-
-// GET / — Trang chủ: hiển thị danh sách công việc với giao diện đẹp + form
-app.get('/', (req, res) => {
-  const tasks = loadTasks();
 
   const listItems = tasks
     .map(
-      (job, index) => `
+      (task) => `
         <li class="todo-item">
-          <span class="todo-text">${escapeHtml(job)}</span>
+          <span class="todo-text">${escapeHtml(task.job_name || '')}</span>
           <form class="delete-form" method="GET" action="/delete">
-            <input type="hidden" name="index" value="${index}">
+            <input type="hidden" name="id" value="${task.id}">
             <button class="delete-btn" type="submit">Xóa</button>
           </form>
         </li>
@@ -48,7 +63,7 @@ app.get('/', (req, res) => {
 <html lang="vi">
 <head>
   <meta charset="utf-8" />
-  <title>To-Do List</title>
+  <title>To-Do List (Supabase)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     * {
@@ -92,6 +107,16 @@ app.get('/', (req, res) => {
     .card-subtitle {
       font-size: 0.9rem;
       color: #6b7280;
+    }
+
+    .error-box {
+      margin-top: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background-color: #fef2f2;
+      color: #b91c1c;
+      font-size: 0.85rem;
+      border: 1px solid #fecaca;
     }
 
     .form-row {
@@ -219,7 +244,14 @@ app.get('/', (req, res) => {
   <div class="card">
     <div class="card-header">
       <div class="card-title">To-Do List</div>
-      <div class="card-subtitle">Nhập công việc rồi bấm \"Thêm\" để lưu.</div>
+      <div class="card-subtitle">
+        Lưu dữ liệu bằng Supabase (PostgreSQL).
+      </div>
+      ${
+        dbError
+          ? `<div class="error-box">Có lỗi khi đọc dữ liệu Supabase: ${escapeHtml(dbError)}</div>`
+          : ''
+      }
     </div>
 
     <form class="form-row" method="GET" action="/add">
@@ -227,7 +259,7 @@ app.get('/', (req, res) => {
         class="input-text"
         type="text"
         name="job"
-        placeholder="Ví dụ: Học Express, tập thể dục..."
+        placeholder="Ví dụ: Học Supabase, học Express..."
         autocomplete="off"
         required
       />
@@ -241,7 +273,7 @@ app.get('/', (req, res) => {
     }
 
     <div class="footer">
-      Trình duyệt gửi request → Node.js (Express) đọc/ghi <code>tasks.json</code> rồi trả HTML lại cho bạn.
+      Trình duyệt → Express → Supabase (PostgreSQL) → trả HTML.
     </div>
   </div>
 </body>
@@ -250,40 +282,38 @@ app.get('/', (req, res) => {
   res.send(html);
 });
 
-// GET /add?job=TenViec — Thêm việc mới rồi redirect về trang chủ
-app.get('/add', (req, res) => {
+// GET /add?job=... — thêm công việc mới vào bảng `tasks`
+app.get('/add', async (req, res) => {
   const job = (req.query.job || '').trim();
+
   if (job) {
-    const tasks = loadTasks();
-    tasks.push(job);
-    saveTasks(tasks);
-  }
-  res.redirect('/');
-});
-
-// (Tùy chọn) GET /delete?index=0 — Xóa một công việc theo index rồi redirect
-app.get('/delete', (req, res) => {
-  const index = parseInt(req.query.index, 10);
-
-  if (!Number.isNaN(index)) {
-    const tasks = loadTasks();
-    if (index >= 0 && index < tasks.length) {
-      tasks.splice(index, 1);
-      saveTasks(tasks);
+    try {
+      const { error } = await supabase.from('tasks').insert({ job_name: job });
+      if (error) throw error;
+    } catch (err) {
+      console.error('Lỗi khi thêm task mới vào Supabase:', err.message);
+      // Vẫn redirect về trang chủ, lỗi sẽ hiển thị trong console server
     }
   }
 
   res.redirect('/');
 });
 
-// Tránh XSS khi hiển thị tên việc
-function escapeHtml(text) {
-  return String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
+// GET /delete?id=... — xóa một công việc theo id
+app.get('/delete', async (req, res) => {
+  const id = parseInt(req.query.id, 10);
+
+  if (!Number.isNaN(id)) {
+    try {
+      const { error } = await supabase.from('tasks').delete().eq('id', id);
+      if (error) throw error;
+    } catch (err) {
+      console.error('Lỗi khi xóa task trên Supabase:', err.message);
+    }
+  }
+
+  res.redirect('/');
+});
 
 app.listen(PORT, () => {
   console.log(`Server chạy tại http://localhost:${PORT}`);
