@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BÁO GIÁ VẬT TƯ IN ẤN – Chủ shop & Nhân viên</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app" id="appRoot">
+    <header class="topbar">
+      <h1>BÁO GIÁ VẬT TƯ IN ẤN – Chủ shop & Nhân viên</h1>
+      <div class="role-box">
+        <span id="roleBadge" class="badge">Nhân viên</span>
+        <button id="ownerBtn" class="btn">Mở Chủ shop (PIN)</button>
+        <button id="logoutOwnerBtn" class="btn hidden">Thoát Chủ shop</button>
+      </div>
+    </header>
+
+    <section class="card dense-grid">
+      <div class="field"><label>Khách hàng / Xưởng</label><input id="customer" type="text"></div>
+      <div class="field"><label>Số điện thoại</label><input id="phone" type="text"></div>
+      <div class="field"><label>Địa chỉ & ghi chú (chành xe)</label><input id="address" type="text"></div>
+      <div class="field"><label>Ngày lập</label><input id="date" type="date"></div>
+      <div class="field"><label>Số đơn (tuỳ chọn)</label><input id="orderNo" type="text"></div>
+      <div class="field"><label>Phí ship (chi phí)</label><input id="shippingFee" type="number" min="0" step="1000" value="0"></div>
+      <div class="field"><label>Tiền xe (thu hộ)</label><input id="transportFee" type="number" min="0" step="1000" value="0"></div>
+      <div class="field"><label>Chiết khấu (%)</label><input id="discount" type="number" min="0" max="100" step="0.1" value="0"></div>
+    </section>
+
+    <section class="card">
+      <div class="section-title">Bảng hàng hóa</div>
+      <div class="table-wrap">
+        <table id="itemsTable">
+          <thead>
+            <tr>
+              <th>Tên hàng</th>
+              <th>Q.cách (m)</th>
+              <th>C.dài (m)</th>
+              <th>SL</th>
+              <th>ĐVT</th>
+              <th>Số m²</th>
+              <th>Giá bán</th>
+              <th class="owner-only">Giá nhập</th>
+              <th>Thành tiền</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="itemsBody"></tbody>
+        </table>
+      </div>
+      <div class="row-actions">
+        <button id="addRowBtn" class="btn">+ Thêm dòng</button>
+      </div>
+      <div id="warningBox" class="warning-box"></div>
+    </section>
+
+    <section class="card summary-grid">
+      <div>Tổng phụ: <strong id="subtotal">0đ</strong></div>
+      <div>Sau chiết khấu: <strong id="afterDiscount">0đ</strong></div>
+      <div class="owner-only">Tổng vốn: <strong id="totalCost">0đ</strong></div>
+      <div class="owner-only">Lợi nhuận: <strong id="profit">0đ</strong></div>
+      <div class="owner-only">% lợi nhuận: <strong id="profitPercent">0%</strong></div>
+      <div>Tổng khách trả: <strong id="customerTotal">0đ</strong></div>
+    </section>
+
+    <section class="card actions">
+      <button id="saveBtn" class="btn">Lưu đơn</button>
+      <button id="duplicateBtn" class="btn">Nhân bản đơn</button>
+      <button id="copyBtn" class="btn">Copy báo giá Zalo</button>
+      <button id="printBtn" class="btn">In</button>
+      <button id="exportBtn" class="btn owner-only">Export JSON</button>
+      <button id="deleteHistoryBtn" class="btn owner-only danger">Xóa lịch sử</button>
+    </section>
+
+    <section class="card owner-only" id="statsCard">
+      <div class="section-title">Thống kê tháng hiện tại</div>
+      <div id="statsContent" class="dense-grid"></div>
+    </section>
+
+    <section class="card">
+      <div class="section-title">Lịch sử đơn</div>
+      <input id="historySearch" type="text" placeholder="Tìm theo khách / số đơn">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Ngày</th><th>Khách</th><th>Tổng tiền</th><th class="owner-only">Lợi nhuận</th><th>Thao tác</th></tr>
+          </thead>
+          <tbody id="historyBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <div id="printArea" class="print-area"></div>
+  </div>
+
+  <dialog id="pinDialog">
+    <form method="dialog" id="pinForm">
+      <h3>PIN Chủ shop (4-6 số)</h3>
+      <p class="small">Lần đầu nhập sẽ được dùng làm PIN mới.</p>
+      <input id="pinInput" type="password" pattern="\d{4,6}" maxlength="6" required>
+      <div class="row-actions">
+        <button value="cancel" class="btn">Huỷ</button>
+        <button value="ok" class="btn">Xác nhận</button>
+      </div>
+      <div id="pinError" class="inline-warn"></div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
